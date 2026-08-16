@@ -6,7 +6,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button, buttonVariants } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Download } from 'lucide-react';
 
 export function InstructionModals() {
