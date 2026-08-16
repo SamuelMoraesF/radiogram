@@ -24,6 +24,7 @@ export interface Radiogram {
   text: string;
   signature: string;
   scenario?: string;
+  dialogue?: { speaker: 'HAM' | 'BASE'; text: string }[];
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard';

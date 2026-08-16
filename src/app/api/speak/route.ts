@@ -6,7 +6,7 @@ export async function POST(request: Request) {
     const { text, voice = 'onwK4e9ZLuTAKqWW03F9' } = await request.json(); // Daniel - Steady Broadcaster
 
     const result = await generateSpeech({
-      model: elevenlabs.speech('eleven_multilingual_v2'),
+      model: elevenlabs.speech('eleven_turbo_v2_5'),
       text,
       voice,
     });

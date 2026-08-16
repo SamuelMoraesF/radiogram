@@ -5,6 +5,23 @@ import type { Radiogram, Difficulty, AppMode } from '@/lib/types';
 import { RadiogramDisplay } from '@/components/radiogram-display';
 import { useTheme } from '@/components/theme-provider';
 import { applyRFNoise, type RFNoiseOptions } from '@/lib/rf-noise';
+import { InstructionModals } from '@/components/instruction-modals';
+
+const ELEVENLABS_VOICES = [
+  'onwK4e9ZLuTAKqWW03F9', // Daniel
+  'IKne3meq5aSn9XLyUdCD', // Charlie
+  'ErXwobaYiN019PkySvjV', // Antoni
+  'VR6AewLTigWG4xSOukaG', // Rachel
+  'pNInz6obpgDQGcFmaJgB', // Adam
+  'yoZ06aMxZJJ28mfd3POQ', // Sam
+  'TX3OmvQA6ZnyXmPTc608', // Liam
+];
+
+function getRandomVoices() {
+  const shuffled = [...ELEVENLABS_VOICES].sort(() => 0.5 - Math.random());
+  return { HAM: shuffled[0], BASE: shuffled[1] };
+}
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +58,7 @@ export default function RadiogramSimulator() {
   const [radiogram, setRadiogram] = useState<Radiogram | null>(null);
   const [parsedRadiogram, setParsedRadiogram] = useState<Radiogram | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -84,20 +102,35 @@ export default function RadiogramSimulator() {
 
   const speakRadiogram = useCallback(async () => {
     if (!radiogram) return;
-    setIsSpeaking(true);
+    setIsLoadingAudio(true);
     setError(null);
 
     try {
-      const speechText = formatForSpeech(radiogram);
+      // Fallback if older radiogram doesn't have dialogue
+      const dialogue = radiogram.dialogue || [
+        { speaker: 'HAM', text: radiogram.text }
+      ];
 
-      const res = await fetch('/api/speak', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: speechText }),
+      // Voices: Randomize
+      const voiceMap = getRandomVoices();
+
+      // Fetch all audio chunks in parallel (user upgraded ElevenLabs plan)
+      const fetchPromises = dialogue.map(async (turn) => {
+        const res = await fetch('/api/speak', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            text: turn.text,
+            voice: voiceMap[turn.speaker as keyof typeof voiceMap] || voiceMap.HAM
+          }),
+        });
+
+        if (!res.ok) throw new Error('Falha ao gerar áudio');
+        const data = await res.json();
+        return data.audio as string;
       });
 
-      if (!res.ok) throw new Error('Falha ao gerar áudio');
-      const data = await res.json();
+      const audioChunks = await Promise.all(fetchPromises);
 
       const noiseOpts: Partial<RFNoiseOptions> = {
         noiseLevel,
@@ -106,7 +139,7 @@ export default function RadiogramSimulator() {
         driftAmount,
       };
 
-      const noisyAudio = await applyRFNoise(data.audio, noiseOpts);
+      const noisyAudio = await applyRFNoise(audioChunks, noiseOpts);
 
       if (audioRef.current) {
         audioRef.current.pause();
@@ -121,10 +154,13 @@ export default function RadiogramSimulator() {
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
       audioRef.current = audio;
+      setIsLoadingAudio(false);
+      setIsSpeaking(true);
       audio.onended = () => setIsSpeaking(false);
       audio.play();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao reproduzir');
+      setIsLoadingAudio(false);
       setIsSpeaking(false);
     }
   }, [radiogram, noiseLevel, staticBursts, signalFading, driftAmount]);
@@ -270,7 +306,7 @@ export default function RadiogramSimulator() {
             reset();
           }}
         >
-          <TabsList className="h-9 bg-muted p-0.5">
+          <TabsList className="h-9 bg-muted p-0.5 hidden">
             <TabsTrigger
               value="receive"
               className="text-xs gap-1.5 px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm"
@@ -296,7 +332,9 @@ export default function RadiogramSimulator() {
                 onValueChange={(v) => setDifficulty(v as Difficulty)}
               >
                 <SelectTrigger className="w-[140px] h-8 text-xs bg-background">
-                  <SelectValue />
+                  <SelectValue>
+                    {difficulty === 'easy' ? 'Fácil' : difficulty === 'medium' ? 'Médio' : 'Difícil'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="easy" className="text-xs">Fácil</SelectItem>
@@ -322,16 +360,19 @@ export default function RadiogramSimulator() {
               {radiogram && (
                 <Button
                   onClick={isSpeaking ? stopAudio : speakRadiogram}
+                  disabled={isLoadingAudio}
                   size="sm"
                   variant="outline"
                   className="h-8 text-xs"
                 >
-                  {isSpeaking ? (
+                  {isLoadingAudio ? (
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  ) : isSpeaking ? (
                     <Square className="w-3 h-3 mr-1.5 fill-current" />
                   ) : (
                     <Volume2 className="w-3.5 h-3.5 mr-1.5" />
                   )}
-                  {isSpeaking ? 'Parar' : 'Ouvir com Ruído RF'}
+                  {isLoadingAudio ? 'Preparando áudio…' : isSpeaking ? 'Parar' : 'Ouvir com Ruído RF'}
                 </Button>
               )}
             </div>
@@ -421,7 +462,32 @@ export default function RadiogramSimulator() {
             )}
 
             {/* Radiogram */}
-            {radiogram && <RadiogramDisplay radiogram={radiogram} />}
+            {radiogram && (
+              <div className="space-y-4">
+                <RadiogramDisplay radiogram={radiogram} />
+                
+                {radiogram.dialogue && (
+                  <details className="group border border-border rounded-lg bg-card overflow-hidden">
+                    <summary className="flex items-center gap-2 px-4 py-3 cursor-pointer text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors select-none list-none [&::-webkit-details-marker]:hidden">
+                      <ChevronDown className="w-3.5 h-3.5 transition-transform group-open:rotate-180" />
+                      Transcrição da Fonia
+                    </summary>
+                    <div className="px-4 py-3 border-t border-border bg-muted/10 space-y-3">
+                      {radiogram.dialogue.map((turn, i) => (
+                        <div key={i} className="flex flex-col gap-0.5">
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                            {turn.speaker}
+                          </span>
+                          <p className="text-sm font-mono text-foreground leading-relaxed">
+                            {turn.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
           </TabsContent>
 
           {/* ═══ TRANSMIT MODE ═══ */}
@@ -546,6 +612,8 @@ export default function RadiogramSimulator() {
           <span className="font-mono">QUERY</span> = ?
           <span className="font-mono">R</span> = decimal
         </div>
+
+        <InstructionModals />
       </main>
 
       {/* ─── Footer ─── */}
@@ -559,56 +627,3 @@ export default function RadiogramSimulator() {
   );
 }
 
-function formatForSpeech(radiogram: Radiogram): string {
-  const parts: string[] = [];
-
-  parts.push('Radiograma.');
-  parts.push(`Número ${radiogram.preamble.number}.`);
-  parts.push(
-    `Precedência ${
-      radiogram.preamble.precedence === 'EMERGENCY'
-        ? 'Emergência'
-        : radiogram.preamble.precedence === 'P'
-          ? 'Prioridade'
-          : radiogram.preamble.precedence === 'W'
-            ? 'Bem-estar'
-            : 'Rotina'
-    }.`
-  );
-
-  if (radiogram.preamble.hx) {
-    parts.push(`H X ${radiogram.preamble.hx}.`);
-  }
-
-  parts.push(
-    `Estação de origem ${radiogram.preamble.stationOfOrigin.split('').join(' ')}.`
-  );
-  parts.push(`Check ${radiogram.preamble.check}.`);
-  parts.push(`Origem ${radiogram.preamble.placeOfOrigin}.`);
-  parts.push(`Hora ${radiogram.preamble.timeField}.`);
-  parts.push(`Data ${radiogram.preamble.date}.`);
-
-  parts.push('Endereço.');
-  parts.push(radiogram.address.name + '.');
-  parts.push(radiogram.address.street + '.');
-  parts.push(
-    `${radiogram.address.city} ${radiogram.address.state} ${radiogram.address.zip}.`
-  );
-  if (radiogram.address.phone) {
-    parts.push(`Telefone ${radiogram.address.phone}.`);
-  }
-
-  parts.push('Texto. Início.');
-  parts.push(
-    radiogram.text
-      .replace(/ X /g, '. ')
-      .replace(/QUERY/g, ', interrogação, ')
-      .replace(/(\d+)R(\d+)/g, '$1 ponto $2')
-  );
-  parts.push('Fim do texto.');
-
-  parts.push(`Assinatura. ${radiogram.signature}.`);
-  parts.push('Fim do radiograma.');
-
-  return parts.join(' ');
-}

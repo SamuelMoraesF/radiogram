@@ -5,7 +5,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import './globals.css';
 
 const geistSans = Geist({
-  variable: '--font-sans',
+  variable: '--font-geist-sans',
   subsets: ['latin'],
 });
 
@@ -28,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
         <ThemeProvider>
           <TooltipProvider>{children}</TooltipProvider>
