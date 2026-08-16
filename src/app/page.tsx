@@ -3,9 +3,10 @@
 import { useState, useRef, useCallback } from 'react';
 import type { Radiogram, Difficulty, AppMode } from '@/lib/types';
 import { RadiogramDisplay } from '@/components/radiogram-display';
+import { useTheme } from '@/components/theme-provider';
 import { applyRFNoise, type RFNoiseOptions } from '@/lib/rf-noise';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Slider } from '@/components/ui/slider';
@@ -25,13 +26,17 @@ import {
   Loader2,
   AlertTriangle,
   Zap,
-  Settings,
+  ChevronDown,
+  ChevronUp,
   RotateCcw,
   Send,
   Square,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 export default function RadiogramSimulator() {
+  const { theme, toggleTheme } = useTheme();
   const [mode, setMode] = useState<AppMode>('receive');
   const [radiogram, setRadiogram] = useState<Radiogram | null>(null);
   const [parsedRadiogram, setParsedRadiogram] = useState<Radiogram | null>(null);
@@ -83,7 +88,6 @@ export default function RadiogramSimulator() {
     setError(null);
 
     try {
-      // Format radiogram text for speech
       const speechText = formatForSpeech(radiogram);
 
       const res = await fetch('/api/speak', {
@@ -95,7 +99,6 @@ export default function RadiogramSimulator() {
       if (!res.ok) throw new Error('Falha ao gerar áudio');
       const data = await res.json();
 
-      // Apply RF noise
       const noiseOpts: Partial<RFNoiseOptions> = {
         noiseLevel,
         staticBursts,
@@ -105,7 +108,6 @@ export default function RadiogramSimulator() {
 
       const noisyAudio = await applyRFNoise(data.audio, noiseOpts);
 
-      // Play audio
       if (audioRef.current) {
         audioRef.current.pause();
         URL.revokeObjectURL(audioRef.current.src);
@@ -182,7 +184,6 @@ export default function RadiogramSimulator() {
     setError(null);
 
     try {
-      // Step 1: Transcribe
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.webm');
 
@@ -195,7 +196,6 @@ export default function RadiogramSimulator() {
       const transcribeData = await transcribeRes.json();
       setTranscribedText(transcribeData.text);
 
-      // Step 2: Parse into radiogram structure
       const parseRes = await fetch('/api/parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -221,107 +221,47 @@ export default function RadiogramSimulator() {
   }, [stopAudio]);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      {/* Top bar */}
-      <header className="border-b border-zinc-800/80 bg-zinc-950/95 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-amber-600/20 flex items-center justify-center">
-              <Radio className="w-5 h-5 text-amber-500" />
-            </div>
-            <div>
-              <h1 className="text-base font-semibold tracking-tight text-zinc-100">
-                USRA Radiograma
-              </h1>
-              <p className="text-[11px] text-zinc-500 tracking-wide">
-                Simulador EmComm · Santa Maria RS
-              </p>
-            </div>
+    <div className="min-h-screen bg-background text-foreground">
+      {/* ─── Header ─── */}
+      <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
+        <div className="mx-auto max-w-3xl px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Radio className="w-4 h-4 text-foreground" />
+            <span className="text-sm font-semibold tracking-tight">
+              USRA Radiograma
+            </span>
+            <span className="hidden sm:inline text-xs text-muted-foreground ml-1">
+              Simulador EmComm
+            </span>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
-              size="sm"
-              onClick={() => setShowSettings(!showSettings)}
-              className="text-zinc-400 hover:text-zinc-200 h-8"
+              size="icon"
+              onClick={toggleTheme}
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
             >
-              <Settings className="w-4 h-4" />
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
             </Button>
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={reset}
-              className="text-zinc-400 hover:text-zinc-200 h-8"
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className="w-3.5 h-3.5" />
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-5">
-        {/* RF Noise Settings Panel */}
-        {showSettings && (
-          <Card className="bg-zinc-900/70 border-zinc-800/80">
-            <CardHeader className="pb-3 pt-4 px-5">
-              <CardTitle className="text-sm text-zinc-300 flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-500" />
-                Configurações de Ruído RF
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-5 pb-4 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div className="space-y-2">
-                  <Label className="text-xs text-zinc-400">
-                    Nível de Ruído: {Math.round(noiseLevel * 100)}%
-                  </Label>
-                  <Slider
-                    value={[noiseLevel]}
-                    onValueChange={(v) => setNoiseLevel(Array.isArray(v) ? v[0] : v)}
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    className="w-full"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs text-zinc-400">
-                    Drift de Frequência: {Math.round(driftAmount * 100)}%
-                  </Label>
-                  <Slider
-                    value={[driftAmount]}
-                    onValueChange={(v) => setDriftAmount(Array.isArray(v) ? v[0] : v)}
-                    min={0}
-                    max={0.5}
-                    step={0.05}
-                    className="w-full"
-                  />
-                </div>
-                <div className="flex items-center gap-3">
-                  <Switch
-                    checked={staticBursts}
-                    onCheckedChange={setStaticBursts}
-                    id="static-bursts"
-                  />
-                  <Label htmlFor="static-bursts" className="text-xs text-zinc-400">
-                    Estática QRN
-                  </Label>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Switch
-                    checked={signalFading}
-                    onCheckedChange={setSignalFading}
-                    id="signal-fading"
-                  />
-                  <Label htmlFor="signal-fading" className="text-xs text-zinc-400">
-                    Fading QSB
-                  </Label>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
+      {/* ─── Main ─── */}
+      <main className="mx-auto max-w-3xl px-6 py-8 space-y-6">
         {/* Mode Tabs */}
         <Tabs
           value={mode}
@@ -330,44 +270,38 @@ export default function RadiogramSimulator() {
             reset();
           }}
         >
-          <TabsList className="bg-zinc-900/80 border border-zinc-800/80 h-10 p-1">
+          <TabsList className="h-9 bg-muted p-0.5">
             <TabsTrigger
               value="receive"
-              className="data-[state=active]:bg-zinc-800 data-[state=active]:text-amber-400 text-xs tracking-wide gap-1.5 px-4"
+              className="text-xs gap-1.5 px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm"
             >
               <Volume2 className="w-3.5 h-3.5" />
               Receber
             </TabsTrigger>
             <TabsTrigger
               value="transmit"
-              className="data-[state=active]:bg-zinc-800 data-[state=active]:text-amber-400 text-xs tracking-wide gap-1.5 px-4"
+              className="text-xs gap-1.5 px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm"
             >
               <Mic className="w-3.5 h-3.5" />
               Transmitir
             </TabsTrigger>
           </TabsList>
 
-          {/* RECEIVE MODE */}
-          <TabsContent value="receive" className="space-y-4 mt-4">
-            {/* Controls */}
-            <div className="flex flex-wrap items-center gap-3">
+          {/* ═══ RECEIVE MODE ═══ */}
+          <TabsContent value="receive" className="mt-5 space-y-4">
+            {/* Controls row */}
+            <div className="flex flex-wrap items-center gap-2">
               <Select
                 value={difficulty}
                 onValueChange={(v) => setDifficulty(v as Difficulty)}
               >
-                <SelectTrigger className="w-[160px] h-9 bg-zinc-900/80 border-zinc-800 text-xs">
-                  <SelectValue placeholder="Dificuldade" />
+                <SelectTrigger className="w-[140px] h-8 text-xs bg-background">
+                  <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-700">
-                  <SelectItem value="easy" className="text-xs">
-                    🟢 Fácil
-                  </SelectItem>
-                  <SelectItem value="medium" className="text-xs">
-                    🟡 Médio
-                  </SelectItem>
-                  <SelectItem value="hard" className="text-xs">
-                    🔴 Difícil
-                  </SelectItem>
+                <SelectContent>
+                  <SelectItem value="easy" className="text-xs">Fácil</SelectItem>
+                  <SelectItem value="medium" className="text-xs">Médio</SelectItem>
+                  <SelectItem value="hard" className="text-xs">Difícil</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -375,160 +309,205 @@ export default function RadiogramSimulator() {
                 onClick={generateRadiogram}
                 disabled={isGenerating}
                 size="sm"
-                className="bg-amber-600 hover:bg-amber-500 text-zinc-950 font-semibold h-9 px-4 text-xs tracking-wide"
+                className="h-8 text-xs font-medium"
               >
                 {isGenerating ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                    Gerando…
-                  </>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                 ) : (
-                  <>
-                    <Zap className="w-3.5 h-3.5 mr-1.5" />
-                    Gerar Radiograma
-                  </>
+                  <Zap className="w-3.5 h-3.5 mr-1.5" />
                 )}
+                {isGenerating ? 'Gerando…' : 'Gerar Radiograma'}
               </Button>
 
               {radiogram && (
-                <>
-                  <Button
-                    onClick={isSpeaking ? stopAudio : speakRadiogram}
-                    disabled={isSpeaking && false}
-                    size="sm"
-                    variant="outline"
-                    className="border-zinc-700 h-9 px-4 text-xs"
-                  >
-                    {isSpeaking ? (
-                      <>
-                        <Square className="w-3 h-3 mr-1.5 fill-current" />
-                        Parar
-                      </>
-                    ) : (
-                      <>
-                        <Volume2 className="w-3.5 h-3.5 mr-1.5" />
-                        Ouvir com Ruído RF
-                      </>
-                    )}
-                  </Button>
-                </>
+                <Button
+                  onClick={isSpeaking ? stopAudio : speakRadiogram}
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                >
+                  {isSpeaking ? (
+                    <Square className="w-3 h-3 mr-1.5 fill-current" />
+                  ) : (
+                    <Volume2 className="w-3.5 h-3.5 mr-1.5" />
+                  )}
+                  {isSpeaking ? 'Parar' : 'Ouvir com Ruído RF'}
+                </Button>
               )}
             </div>
 
-            {/* VU Meter effect while speaking */}
+            {/* RF Settings collapsible */}
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showSettings ? (
+                <ChevronUp className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )}
+              Configurações de ruído RF
+            </button>
+
+            {showSettings && (
+              <Card>
+                <CardContent className="pt-4 pb-4 px-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-xs">
+                      Nível de ruído ·{' '}
+                      <span className="font-mono">{Math.round(noiseLevel * 100)}%</span>
+                    </Label>
+                    <Slider
+                      value={[noiseLevel]}
+                      onValueChange={(v) => setNoiseLevel(Array.isArray(v) ? v[0] : v)}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">
+                      Drift de frequência ·{' '}
+                      <span className="font-mono">{Math.round(driftAmount * 100)}%</span>
+                    </Label>
+                    <Slider
+                      value={[driftAmount]}
+                      onValueChange={(v) => setDriftAmount(Array.isArray(v) ? v[0] : v)}
+                      min={0}
+                      max={0.5}
+                      step={0.05}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <Switch
+                      checked={staticBursts}
+                      onCheckedChange={setStaticBursts}
+                      id="qrn"
+                    />
+                    <Label htmlFor="qrn" className="text-xs">Estática QRN</Label>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <Switch
+                      checked={signalFading}
+                      onCheckedChange={setSignalFading}
+                      id="qsb"
+                    />
+                    <Label htmlFor="qsb" className="text-xs">Fading QSB</Label>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* VU meter while speaking */}
             {isSpeaking && (
-              <div className="flex items-center gap-2 px-1">
-                <div className="flex items-center gap-[3px] h-5">
-                  {Array.from({ length: 16 }).map((_, i) => (
+              <div className="flex items-center gap-2">
+                <div className="flex items-end gap-px h-4">
+                  {Array.from({ length: 20 }).map((_, i) => (
                     <div
                       key={i}
-                      className="w-1.5 rounded-sm animate-pulse"
+                      className="w-1 rounded-sm bg-foreground/60 animate-pulse"
                       style={{
-                        height: `${Math.random() * 16 + 4}px`,
-                        backgroundColor:
-                          i < 10
-                            ? 'rgb(34 197 94)'
-                            : i < 13
-                              ? 'rgb(234 179 8)'
-                              : 'rgb(239 68 68)',
-                        animationDelay: `${i * 50}ms`,
-                        animationDuration: `${300 + Math.random() * 400}ms`,
+                        height: `${Math.random() * 14 + 2}px`,
+                        animationDelay: `${i * 40}ms`,
+                        animationDuration: `${250 + Math.random() * 350}ms`,
                       }}
                     />
                   ))}
                 </div>
-                <span className="text-[11px] text-zinc-500 tracking-wide">
-                  TX em andamento…
+                <span className="text-xs text-muted-foreground">
+                  Transmissão em andamento…
                 </span>
               </div>
             )}
 
-            {/* Radiogram Display */}
+            {/* Radiogram */}
             {radiogram && <RadiogramDisplay radiogram={radiogram} />}
           </TabsContent>
 
-          {/* TRANSMIT MODE */}
-          <TabsContent value="transmit" className="space-y-4 mt-4">
-            <Card className="bg-zinc-900/50 border-zinc-800/80">
-              <CardContent className="p-5 space-y-4">
-                <div className="flex flex-col items-center gap-4">
-                  <p className="text-xs text-zinc-400 text-center max-w-md leading-relaxed">
-                    Pressione o botão abaixo e dite o radiograma completo.
-                    Inclua preâmbulo, endereço, texto e assinatura.
-                  </p>
+          {/* ═══ TRANSMIT MODE ═══ */}
+          <TabsContent value="transmit" className="mt-5 space-y-4">
+            {/* Mic card */}
+            <Card>
+              <CardContent className="py-10 flex flex-col items-center gap-5">
+                <p className="text-sm text-muted-foreground text-center max-w-sm leading-relaxed">
+                  Pressione o botão e dite o radiograma completo — preâmbulo,
+                  endereço, texto e assinatura.
+                </p>
 
-                  <Button
-                    onClick={isRecording ? stopRecording : startRecording}
-                    disabled={isTranscribing}
-                    size="lg"
-                    className={`rounded-full w-20 h-20 ${
+                <button
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={isTranscribing}
+                  className={`
+                    w-16 h-16 rounded-full flex items-center justify-center
+                    transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-ring
+                    ${
                       isRecording
-                        ? 'bg-red-600 hover:bg-red-500 animate-pulse shadow-lg shadow-red-900/40'
-                        : 'bg-zinc-800 hover:bg-zinc-700 border border-zinc-700'
-                    }`}
-                  >
-                    {isTranscribing ? (
-                      <Loader2 className="w-7 h-7 animate-spin text-zinc-400" />
-                    ) : isRecording ? (
-                      <Square className="w-6 h-6 fill-white text-white" />
-                    ) : (
-                      <Mic className="w-7 h-7 text-zinc-300" />
-                    )}
-                  </Button>
+                        ? 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20 animate-pulse text-white'
+                        : isTranscribing
+                          ? 'bg-muted text-muted-foreground cursor-wait'
+                          : 'bg-foreground text-background hover:opacity-90 shadow-sm'
+                    }
+                  `}
+                >
+                  {isTranscribing ? (
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  ) : isRecording ? (
+                    <Square className="w-5 h-5 fill-current" />
+                  ) : (
+                    <Mic className="w-6 h-6" />
+                  )}
+                </button>
 
-                  <span className="text-[11px] text-zinc-500 tracking-wide">
-                    {isTranscribing
-                      ? 'Processando áudio…'
-                      : isRecording
-                        ? 'Gravando… Clique para parar'
-                        : 'Clique para gravar'}
-                  </span>
-                </div>
+                <span className="text-xs text-muted-foreground">
+                  {isTranscribing
+                    ? 'Processando…'
+                    : isRecording
+                      ? 'Gravando — clique para parar'
+                      : 'Clique para gravar'}
+                </span>
 
-                {/* Recording VU meter */}
+                {/* Recording VU */}
                 {isRecording && (
-                  <div className="flex justify-center">
-                    <div className="flex items-center gap-[3px] h-6">
-                      {Array.from({ length: 24 }).map((_, i) => (
-                        <div
-                          key={i}
-                          className="w-1 rounded-sm animate-pulse bg-red-500"
-                          style={{
-                            height: `${Math.random() * 20 + 4}px`,
-                            animationDelay: `${i * 40}ms`,
-                            animationDuration: `${200 + Math.random() * 300}ms`,
-                          }}
-                        />
-                      ))}
-                    </div>
+                  <div className="flex items-end gap-px h-5">
+                    {Array.from({ length: 28 }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="w-0.5 rounded-full bg-red-500 animate-pulse"
+                        style={{
+                          height: `${Math.random() * 18 + 2}px`,
+                          animationDelay: `${i * 30}ms`,
+                          animationDuration: `${200 + Math.random() * 300}ms`,
+                        }}
+                      />
+                    ))}
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* Transcribed Text */}
+            {/* Transcription */}
             {transcribedText && (
-              <Card className="bg-zinc-900/50 border-zinc-800/80">
-                <CardHeader className="pb-2 pt-4 px-5">
-                  <CardTitle className="text-xs text-zinc-400 flex items-center gap-2">
-                    <Send className="w-3.5 h-3.5" />
-                    Texto Transcrito
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="px-5 pb-4">
-                  <p className="text-sm text-zinc-200 font-mono leading-relaxed bg-zinc-800/40 rounded p-3">
-                    {transcribedText}
-                  </p>
-                </CardContent>
-              </Card>
+              <div className="space-y-1.5">
+                <h3 className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Send className="w-3 h-3" />
+                  Texto transcrito
+                </h3>
+                <Card>
+                  <CardContent className="py-3 px-4">
+                    <p className="text-sm font-mono text-foreground leading-relaxed">
+                      {transcribedText}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
-            {/* Parsed Radiogram */}
+            {/* Parsed radiogram */}
             {parsedRadiogram && (
               <div className="space-y-2">
-                <h3 className="text-xs text-zinc-400 font-semibold tracking-wide uppercase flex items-center gap-2 px-1">
-                  <Radio className="w-3.5 h-3.5" />
-                  Radiograma Interpretado
+                <h3 className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Radio className="w-3 h-3" />
+                  Radiograma interpretado
                 </h3>
                 <RadiogramDisplay radiogram={parsedRadiogram} />
               </div>
@@ -536,56 +515,44 @@ export default function RadiogramSimulator() {
           </TabsContent>
         </Tabs>
 
-        {/* Error display */}
+        {/* Error */}
         {error && (
-          <div className="flex items-start gap-2.5 p-3.5 rounded-lg bg-red-950/30 border border-red-900/40">
-            <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
-            <p className="text-xs text-red-300 leading-relaxed">{error}</p>
+          <div className="flex items-start gap-2.5 p-3 rounded-lg border border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/20">
+            <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+            <p className="text-xs text-red-700 dark:text-red-300 leading-relaxed">{error}</p>
           </div>
         )}
 
-        {/* Reference card */}
-        <Card className="bg-zinc-900/30 border-zinc-800/60">
-          <CardContent className="p-4">
-            <div className="flex flex-wrap gap-x-6 gap-y-2 text-[11px] text-zinc-500">
-              <span>
-                <Badge variant="outline" className="text-[10px] mr-1.5 border-emerald-800/50 text-emerald-500">
-                  R
-                </Badge>
-                Rotina
-              </span>
-              <span>
-                <Badge variant="outline" className="text-[10px] mr-1.5 border-amber-800/50 text-amber-500">
-                  W
-                </Badge>
-                Bem-estar
-              </span>
-              <span>
-                <Badge variant="outline" className="text-[10px] mr-1.5 border-orange-800/50 text-orange-500">
-                  P
-                </Badge>
-                Prioridade
-              </span>
-              <span>
-                <Badge variant="outline" className="text-[10px] mr-1.5 border-red-800/50 text-red-500">
-                  E
-                </Badge>
-                Emergência
-              </span>
-              <span className="text-zinc-600">|</span>
-              <span>X = ponto final</span>
-              <span>QUERY = ?</span>
-              <span>R = decimal (146R52)</span>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Reference */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground pt-2">
+          <span>
+            <Badge variant="outline" className="text-[10px] mr-1 font-mono">R</Badge>
+            Rotina
+          </span>
+          <span>
+            <Badge variant="outline" className="text-[10px] mr-1 font-mono">W</Badge>
+            Bem-estar
+          </span>
+          <span>
+            <Badge variant="outline" className="text-[10px] mr-1 font-mono">P</Badge>
+            Prioridade
+          </span>
+          <span>
+            <Badge variant="outline" className="text-[10px] mr-1 font-mono">E</Badge>
+            Emergência
+          </span>
+          <span className="text-border">|</span>
+          <span className="font-mono">X</span> = ponto final
+          <span className="font-mono">QUERY</span> = ?
+          <span className="font-mono">R</span> = decimal
+        </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-zinc-800/60 mt-8">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between text-[11px] text-zinc-600">
+      {/* ─── Footer ─── */}
+      <footer className="border-t border-border mt-12">
+        <div className="mx-auto max-w-3xl px-6 py-5 flex items-center justify-between text-xs text-muted-foreground">
           <span>USRA · União Santamariense de Radioamadores</span>
-          <span>Formato ARRL · Padrão NTS</span>
+          <span>Formato ARRL · NTS</span>
         </div>
       </footer>
     </div>
@@ -596,9 +563,7 @@ function formatForSpeech(radiogram: Radiogram): string {
   const parts: string[] = [];
 
   parts.push('Radiograma.');
-  parts.push(
-    `Número ${radiogram.preamble.number}.`
-  );
+  parts.push(`Número ${radiogram.preamble.number}.`);
   parts.push(
     `Precedência ${
       radiogram.preamble.precedence === 'EMERGENCY'

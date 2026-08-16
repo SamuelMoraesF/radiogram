@@ -3,98 +3,112 @@
 import type { Radiogram } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 
-const precedenceLabels: Record<string, { label: string; color: string }> = {
-  R: { label: 'ROTINA', color: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50' },
-  W: { label: 'BEM-ESTAR', color: 'bg-amber-900/40 text-amber-300 border-amber-700/50' },
-  P: { label: 'PRIORIDADE', color: 'bg-orange-900/40 text-orange-300 border-orange-700/50' },
-  EMERGENCY: { label: 'EMERGÊNCIA', color: 'bg-red-900/50 text-red-300 border-red-600/50' },
+const precedenceConfig: Record<string, { label: string; className: string }> = {
+  R: {
+    label: 'Rotina',
+    className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50',
+  },
+  W: {
+    label: 'Bem-estar',
+    className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50',
+  },
+  P: {
+    label: 'Prioridade',
+    className: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800/50',
+  },
+  EMERGENCY: {
+    label: 'Emergência',
+    className: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/50',
+  },
 };
 
 export function RadiogramDisplay({ radiogram }: { radiogram: Radiogram }) {
-  const prec = precedenceLabels[radiogram.preamble.precedence] || precedenceLabels.R;
+  const prec = precedenceConfig[radiogram.preamble.precedence] || precedenceConfig.R;
 
   return (
-    <div className="font-mono text-sm space-y-0 border border-zinc-700/60 rounded-lg overflow-hidden bg-zinc-900/50 shadow-lg">
+    <div className="border border-border rounded-lg overflow-hidden bg-card">
       {/* Header */}
-      <div className="bg-zinc-800/80 px-4 py-2.5 flex items-center justify-between border-b border-zinc-700/60">
-        <span className="text-xs tracking-[0.2em] uppercase text-zinc-400 font-semibold">
-          Radiograma ARRL / USRA
+      <div className="px-5 py-3 flex items-center justify-between border-b border-border bg-muted/30">
+        <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          Radiograma ARRL
         </span>
-        <Badge variant="outline" className={`text-[11px] font-bold tracking-wider ${prec.color}`}>
+        <Badge variant="outline" className={`text-[11px] font-semibold ${prec.className}`}>
           {prec.label}
         </Badge>
       </div>
 
-      {/* 1. Preâmbulo */}
-      <div className="px-4 py-3 border-b border-zinc-700/40">
-        <div className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-2 font-semibold">
-          1. Preâmbulo
-        </div>
-        <div className="grid grid-cols-4 gap-x-3 gap-y-1.5 text-xs">
+      {/* Preâmbulo */}
+      <div className="px-5 py-4 border-b border-border">
+        <SectionLabel>1. Preâmbulo</SectionLabel>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2 mt-2">
           <Field label="NR" value={String(radiogram.preamble.number)} />
-          <Field label="PREC" value={radiogram.preamble.precedence} />
+          <Field label="Precedência" value={radiogram.preamble.precedence} />
           <Field label="HX" value={radiogram.preamble.hx || '—'} />
-          <Field label="ESTAÇÃO" value={radiogram.preamble.stationOfOrigin} />
-          <Field label="CHECK" value={String(radiogram.preamble.check)} />
-          <Field label="ORIGEM" value={radiogram.preamble.placeOfOrigin} />
-          <Field label="HORA" value={radiogram.preamble.timeField} />
-          <Field label="DATA" value={radiogram.preamble.date} />
+          <Field label="Estação" value={radiogram.preamble.stationOfOrigin} mono />
+          <Field label="Check" value={String(radiogram.preamble.check)} />
+          <Field label="Origem" value={radiogram.preamble.placeOfOrigin} />
+          <Field label="Hora" value={radiogram.preamble.timeField} mono />
+          <Field label="Data" value={radiogram.preamble.date} />
         </div>
       </div>
 
-      {/* 2. Endereço */}
-      <div className="px-4 py-3 border-b border-zinc-700/40">
-        <div className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1.5 font-semibold">
-          2. Endereço
-        </div>
-        <div className="text-zinc-200 space-y-0.5 text-xs leading-relaxed">
-          <div className="font-semibold">{radiogram.address.name}</div>
-          <div>{radiogram.address.street}</div>
-          <div>
+      {/* Endereço */}
+      <div className="px-5 py-4 border-b border-border">
+        <SectionLabel>2. Endereço</SectionLabel>
+        <div className="mt-2 text-sm text-foreground leading-relaxed space-y-0.5">
+          <p className="font-medium">{radiogram.address.name}</p>
+          <p className="text-muted-foreground">{radiogram.address.street}</p>
+          <p className="text-muted-foreground">
             {radiogram.address.city} {radiogram.address.state} {radiogram.address.zip}
-          </div>
+          </p>
           {radiogram.address.phone && (
-            <div className="text-zinc-400">{radiogram.address.phone}</div>
+            <p className="text-muted-foreground text-xs">{radiogram.address.phone}</p>
           )}
         </div>
       </div>
 
-      {/* 3. Texto */}
-      <div className="px-4 py-3 border-b border-zinc-700/40">
-        <div className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1.5 font-semibold">
-          3. Texto
-        </div>
-        <div className="text-zinc-100 font-semibold text-sm leading-relaxed tracking-wide bg-zinc-800/40 rounded px-3 py-2">
+      {/* Texto */}
+      <div className="px-5 py-4 border-b border-border">
+        <SectionLabel>3. Texto</SectionLabel>
+        <div className="mt-2 font-mono text-sm font-medium text-foreground leading-relaxed bg-muted/40 rounded-md px-4 py-3 border border-border">
           {radiogram.text}
         </div>
       </div>
 
-      {/* 4. Assinatura */}
-      <div className="px-4 py-3">
-        <div className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1 font-semibold">
-          4. Assinatura
-        </div>
-        <div className="text-zinc-200 text-xs">{radiogram.signature}</div>
+      {/* Assinatura */}
+      <div className="px-5 py-4">
+        <SectionLabel>4. Assinatura</SectionLabel>
+        <p className="mt-1.5 text-sm text-foreground">{radiogram.signature}</p>
       </div>
 
-      {/* Cenário (se disponível) */}
+      {/* Cenário */}
       {radiogram.scenario && (
-        <div className="px-4 py-2.5 bg-zinc-800/50 border-t border-zinc-700/40">
-          <div className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mb-1 font-semibold">
-            Cenário
-          </div>
-          <div className="text-zinc-400 text-xs italic">{radiogram.scenario}</div>
+        <div className="px-5 py-3 border-t border-border bg-muted/20">
+          <p className="text-xs text-muted-foreground">
+            <span className="font-medium">Cenário:</span>{' '}
+            <span className="italic">{radiogram.scenario}</span>
+          </p>
         </div>
       )}
     </div>
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      {children}
+    </h3>
+  );
+}
+
+function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <span className="text-zinc-500 text-[10px]">{label}: </span>
-      <span className="text-zinc-200 font-semibold">{value}</span>
+      <dt className="text-[11px] text-muted-foreground">{label}</dt>
+      <dd className={`text-sm font-medium text-foreground ${mono ? 'font-mono' : ''}`}>
+        {value}
+      </dd>
     </div>
   );
 }
